@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <time.h>
 #include <GL/glut.h>
 
 GLfloat jumpMax = 2.3f;
@@ -7,7 +8,8 @@ GLfloat player_posY = -4.0f;
 GLfloat player_posX = -6.0f;
 GLfloat posMax = -2.0f;
 GLfloat posMin = -4.0f;
-GLfloat cone_posX = 4.0f;
+GLfloat cone_posX = 9.0f;
+GLfloat cone_posY = 0.0f;
 GLint jump_count = 1;
 
 static int window_width, window_height;
@@ -18,6 +20,7 @@ static void on_reshape(int width, int height);
 static void on_display(void);
 static void jump(int);
 static void cone_move(int);
+static int random_position(int);
 
 int main(int argc, char **argv)
 {
@@ -31,6 +34,8 @@ int main(int argc, char **argv)
     glutCreateWindow(argv[0]);
 
     /* Registruju se callback funkcije. */
+    cone_posY = random_position(16);
+
     glutKeyboardFunc(on_keyboard);
     glutReshapeFunc(on_reshape);
     glutDisplayFunc(on_display);
@@ -55,7 +60,7 @@ static void on_keyboard(unsigned char key, int x, int y)
         exit(0);
         break;
     case 'w':
-	if(jump_count == 1)
+	if(jump_count == 1 && player_posY == posMin)
 		glutTimerFunc(0,jump, 0);
 	break;
     }
@@ -90,12 +95,21 @@ static void jump(int value){
 }
 
 static void cone_move(int value){
-	if(cone_posX >= -4.0){
+	if(cone_posX >= -10.0){
 		cone_posX -= 0.1;
 		glutPostRedisplay();
 		glutTimerFunc(25,cone_move, 0);
 	}
 }
+
+static int random_position(int value){
+	srand(time(NULL));
+	if(rand()%value - 8 < player_posY)
+		return player_posY;
+	else
+		return rand()%value - 8;
+}
+
 static void on_display(void)
 {
     
@@ -120,11 +134,11 @@ static void on_display(void)
 	
     glBegin(GL_LINES);
         glColor3f(1,0,0);
-        glVertex3f(0,0,0);
+        glVertex3f(-10,0,0);
         glVertex3f(10,0,0);
         
         glColor3f(0,1,0);
-        glVertex3f(0,0,0);
+        glVertex3f(0,-10,0);
         glVertex3f(0,10,0);
         
         glColor3f(0,0,1);
@@ -142,7 +156,7 @@ static void on_display(void)
     //prepreka
     glColor3f(0,1,0);
     glPushMatrix();
-    glTranslatef(cone_posX,0,0);
+    glTranslatef(cone_posX, cone_posY,0);
     glRotatef(-90,1,0,0);
     glutSolidCone(0.3,1,10,1);
     glPopMatrix();
