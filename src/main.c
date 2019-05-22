@@ -11,11 +11,13 @@ static void jump();
 static void cone_move(int);
 static void make_cone(int);
 static void move_level();
+static void on_timer(int value);
 void output(int x, int y, char* string);
 
 static int random_position(int);
 
 bool collision(float, float);
+char score_output[256]; //String u koji cuvamo skor
 
 int main(int argc, char **argv)
 {
@@ -35,13 +37,19 @@ int main(int argc, char **argv)
     glutFullScreen();
     
     /* Obavlja se OpenGL inicijalizacija. */
-    glClearColor(0, 0, 0, 1);
+    glClearColor(0.5, 0.5, 1, 1);
     glEnable(GL_DEPTH_TEST);
-    glLineWidth(2);
     
-    glutTimerFunc(0, move_level, 0);
-   // glutTimerFunc(0, free_fall, 0);
-    /* Program ulazi uglavnu petlju. */
+    //Omogucavamo osvetljenje
+    glEnable(GL_LIGHTING);
+    glEnable(GL_LIGHT0);
+    glShadeModel(GL_SMOOTH);
+    
+    //Postavljamo osvetljenje scene
+    set_light();
+    
+    //Pokrecemo nivo
+    glutTimerFunc(1000/60, on_timer, 0);
     glutMainLoop();
 
     return 0;
@@ -55,6 +63,11 @@ static void on_keyboard(unsigned char key, int x, int y)
         exit(0);
         break;
     case 'r':
+        //Restartuje ceo nivo tj. vraca sve vrednosti na pocetne
+        for(int i=0; i<COIN_COUNT; i++){
+            coin_coll[i] = false;
+        }
+        score = 0;
         translate_level = 10;
         player_posX = -6.0;
         player_posY = -4.0;
@@ -62,27 +75,23 @@ static void on_keyboard(unsigned char key, int x, int y)
         coll = false;
         posMax = -1.0;
         posMin = -4.0;
+        endgame = false;
         break;
     case 'p':
+        //Pauzira nivo
         jump_speed = 0;
         fall_speed = 0;
         translate_coef = 0;
         break;
     case 'g':
-        jump_speed = 0.15;
-        fall_speed = 0.175;
-        translate_coef = 0.075;
+        //Nastavljamo sa igrom nakon pauze
+        jump_speed = 0.175;
+        fall_speed = 0.2;
+        translate_coef = 0.1;
         break;
     case 'w':
-        if(jump_count == true && can_jump == true && player_posY == posMin){
-            posMin = -4.0;
-            can_jump == false;
-            glutTimerFunc(0,jump,0);
-            
-            if(player_posY == -4.0)
-                posMax = -1.0;
-        } else if(jump_count == true && player_posY == posMin)
-            glutTimerFunc(0,jump, 0);
+        //Skakanje
+        w_pressed = true;
         break;
     }
 }
@@ -94,6 +103,7 @@ static void on_reshape(int width, int height)
     window_height = height;
 }
 
+//Izbacivanje teksta na ekran
 void output(int x, int y, char *string)
 {
     glColor3f(1.0, 1.0, 1.0);
@@ -104,44 +114,84 @@ void output(int x, int y, char *string)
         glutBitmapCharacter(GLUT_BITMAP_9_BY_15, string[i]);
     }
 }
- 
-static void move_level(){
+
+void output_endgame(int x, int y, char *string)
+{
+    glColor3f(1.0, 1.0, 1.0);
+    glRasterPos2f(x, y);
+    int len, i;
+    len = (int)strlen(string);
+    for (i = 0; i < len; i++) {
+        glutBitmapCharacter(GLUT_BITMAP_HELVETICA_18, string[i]);
+    }
+}
+
+//Pomeranje nivoa
+
+static void on_timer(int value){
+    
     translate_level -= translate_coef;
-    glutPostRedisplay();
-    glutTimerFunc(1000/60, move_level, 0);
+    score_translate_add += translate_coef;
+    //Kada score_translate_add dodje do 1 onda se doda 5 boda na skor
+    if(score_translate_add >= 1.0 && score_translate_add <= 1.5){
+        score += 5;
+        score_translate_add = 0;
+    }
     
-}
-
-static void jump(){
-	if(player_posY <= posMax && jump_count == true){
-		player_posY += jump_speed;
-	}
-	else if(player_posY >= posMax){
-		jump_count = false;
-	}
-	
-	if(player_posY >= posMin && jump_count == false)
-		player_posY -= fall_speed;
-	else if(player_posY <= posMin){
-		player_posY = posMin;
-		jump_count = true;
-		return;
-	}
+    //Skakanje
+    if(w_pressed){
+        if(jump_count == true && can_jump == true && player_posY >= posMin){
+                posMin = -4.0;
+                can_jump == false;
+                jump();
+                
+                if(player_posY == -4.0){
+                    posMax = -1.0;
+                    w_pressed = false;
+                }
+            }
+            //Ukoliko igrac nije vec u skoku onda skace
+        else if(jump_count == true)
+            jump();
+        else{
+            //Pocinje pad
+            if(player_posY >= posMin && jump_count == false)
+                player_posY -= fall_speed;
+            //Ukoliko igrac dodje do min visine (ili je prodje)
+            //visina igraca se postavlja na min visinu
+            else if(player_posY <= posMin){
+                player_posY = posMin;
+                jump_count = true;
+                posMax = -1.0;
+                w_pressed = false;
+            }
+        }
+    }
     
-	glutPostRedisplay();
-	glutTimerFunc(1000/60, jump, 0);
-}
-
-static void free_fall(){
-    if((player_posY >= posMin) && (coll == false) && (jump_count == false))
+    //Slobodan pad
+    if((player_posY >= posMin) && free_fall_active)
         player_posY -= fall_speed;
-    else if(player_posY <= posMin){
+    if(player_posY <= posMin && free_fall_active){
         player_posY = posMin;
         jump_count = true;
+        free_fall_active = false;
     }
     
     glutPostRedisplay();
-	glutTimerFunc(1000/60, free_fall, 0);
+    glutTimerFunc(1000/60, on_timer, 0);
+    
+}
+
+//Skok
+static void jump(){
+	//pocinje skok
+    if(player_posY <= posMax && jump_count == true){
+		player_posY += jump_speed;
+	}
+	//Igrac je dosao do max visine
+	else if(player_posY >= posMax){
+		jump_count = false;
+	}
 }
 
 static int random_position(int value){
@@ -155,14 +205,8 @@ static int random_position(int value){
 
 static void on_display(void)
 {
-    
-//     GLfloat light_position[] = {1,1,1,0};
-//     GLfloat light_ambient[] = {0.0,0.0,0.0,1};
-//     GLfloat light_diffuse[] = {0.7,0.7,0.7,1};
-//     GLfloat light_specular[] = {0.9,0.9,0.9,1};
-//     
      glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
+    //Postavljanje kamere
     glViewport(0, 0, window_width, window_height);
 
     glMatrixMode(GL_PROJECTION);
@@ -180,62 +224,77 @@ static void on_display(void)
             0, 1, 0 
         );
     
-    /*glEnable(GL_LIGHTING);
-    glEnable(GL_LIGHT0);
-   /* /* glLightfv(GL_LIGHT0, GL_POSITION, light_position);
-    glLightfv(GL_LIGHT0, GL_AMBIENT, light_ambient);
-    glLightfv(GL_LIGHT0, GL_DIFFUSE, light_diffuse);
-    glLightfv(GL_LIGHT0, GL_SPECULAR, light_specular);
-    
-    GLfloat ambient_coeffs_floor[] = { 0, 0, 1, 1 };
-    GLfloat diffuse_coeffs_floor[] = { 0.0, 0.0, 0.8, 1 };
-    GLfloat specular_coeffs_floor[] = { 1, 1, 1, 1 };
-    GLfloat shininess_floor = 50;
-   */ 
-    
+    //Zemlja
     glPushMatrix();
-        glColor3f(0,1,0);
-//         glMaterialfv(GL_FRONT, GL_AMBIENT, ambient_coeffs_floor);
-//         glMaterialfv(GL_FRONT, GL_DIFFUSE, diffuse_coeffs_floor);
-//         glMaterialfv(GL_FRONT, GL_SPECULAR, specular_coeffs_floor);
-//         glMaterialf(GL_FRONT, GL_SHININESS, shininess_floor);
-
         glScalef(100,4,2);
         glTranslatef(0,-1.66,0);
+        ground_light();
         glutSolidCube(1);
     glPopMatrix();
     
-//     GLfloat ambient_coeffs_player[] = { 0, 0.3, 0.7, 1 };
-//     GLfloat diffuse_coeffs_player[] = { 0.0, 0.0, 0.8, 1 };
-//     GLfloat specular_coeffs_player[] = { 1, 1, 1, 1 };
-//     GLfloat shininess_player = 50;
- 
-    glPushMatrix();
-        glColor3f(0, 0.3,0.7);
-        
-    /*    glMaterialfv(GL_FRONT, GL_AMBIENT, ambient_coeffs_player);
-        glMaterialfv(GL_FRONT, GL_DIFFUSE, diffuse_coeffs_player);
-        glMaterialfv(GL_FRONT, GL_SPECULAR, specular_coeffs_player);
-        glMaterialf(GL_FRONT, GL_SHININESS, shininess_player);
-        //glDisable(GL_LIGHTING);
-    */   
+    //Igrac
     glPushMatrix();
         glTranslatef(player_posX, player_posY, 0);
+        player_light();
         glutSolidCube(1);
-        glPopMatrix();
     glPopMatrix();
     
+    //Kliping ravan koja se nalazi van ekrana, da se ne bi ispisivao ceo nivo
+    double clip_plane[] = {-2, 0, 0, 0};
+    
     glPushMatrix();
-        //printf("%d  ", coll);
-        if(coll){
-            output(0,0, "SUDAR");
+    glTranslatef(25,0,0);
+    glClipPlane(GL_CLIP_PLANE0, clip_plane);
+    glPopMatrix();
+    glEnable(GL_CLIP_PLANE0);
+    
+    //Nivo
+    glPushMatrix();
+         if(coll){
+             //nakon detekcije kolizije restartuje se nivo
+             for(int i=0; i<COIN_COUNT; i++){
+             coin_coll[i] = false;
+             }
+             score = 0;
+             translate_level = 10;
+             player_posX = -6.0;
+             player_posY = -4.0;
+             jump_count = true;
+             coll = false;
+             posMax = -1.0;
+             posMin = -4.0;
+             jump_speed = 0;
+             fall_speed = 0;
+             translate_coef = 0;
+             endgame = false;
+         }
+    
+        if(endgame){
+            //Predjen nivo
+            translate_coef = 0;
+            jump_speed = 0;
+            glDisable(GL_LIGHTING);
+            glDisable(GL_LIGHT0);
+            output(0, 4, "YOU WIN!");
+            glEnable(GL_LIGHTING);
+        glEnable(GL_LIGHT0);
         }
         glColor3f(1,0,0);
         glTranslatef(translate_level,0,0);
         draw_lvl();
     glPopMatrix();
-  
-    output(12.5,8.5, "Score: ");
+    
+    glDisable(GL_CLIP_PLANE0);
+    
+    //Ispisivanje skora u gornjem desnom uglu
+    glDisable(GL_LIGHTING);
+    glDisable(GL_LIGHT0);
+        output(12.5,8.5, "Score: ");
+        sprintf(score_output, "%d", score);
+        output(14.5, 8.5, score_output);     
+    glEnable(GL_LIGHTING);
+    glEnable(GL_LIGHT0);
+    
     glutPostRedisplay();
     glutSwapBuffers();
 }
