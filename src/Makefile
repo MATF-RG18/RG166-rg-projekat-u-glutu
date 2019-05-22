@@ -1,10 +1,12 @@
-PROGRAM   = 1
+PROGRAM   = Dush-game
 CC        = gcc
-CFLAGS    = -g -Wall
+PROG      = main.c lvl.c variables.c collision.c light.c
+ZAG       = lvl.h variables.h collision.h light.h
+CFLAGS    = -g -lm
 LDFLAGS   = -lGL -lGLU -lglut
 
-$(PROGRAM): main.o
-	$(CC) -o $(PROGRAM) main.o $(LDFLAGS)
+$(PROGRAM): $(PROG) $(ZAG)
+	$(CC) $(CFLAGS) -o $(PROGRAM) $(PROG) $(LDFLAGS)
 
 .PHONY: clean dist
 
@@ -13,5 +15,3 @@ clean:
 
 dist: clean
 	-tar -chvj -C .. -f ../$(PROGRAM).tar.bz2 $(PROGRAM)
-
-
